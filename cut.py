@@ -1,0 +1,86 @@
+import argparse
+import subprocess
+import os
+
+def sizeof_fmt(num, suffix="B"):
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
+        if abs(num) < 1024.0:
+            return f"{num:3.1f}{unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f}Yi{suffix}"
+
+def run_ffmpeg(
+    input_file,
+    start_time,
+    end_time=None,
+    audio_tracks=None,
+    scale=None,
+    crf=22,
+    preset="medium"
+) -> None:
+    output_file = os.path.splitext(input_file)[0] + "_cut.mp4"
+
+    cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start_time]
+
+    if end_time:
+        cmd += ["-to", end_time]
+
+    if audio_tracks:
+        tracks = audio_tracks.split(",")
+        audio_inputs = "".join(f"[0:a:{t}]" for t in tracks)
+
+        # 비디오 필터
+        vf_filter = f"[0:v:0]scale={scale}:-2[vout]" if scale else "[0:v:0]copy[vout]"
+
+        # 오디오 믹스
+        filter_complex = f"{vf_filter};{audio_inputs}amix=inputs={len(tracks)}[aout]"
+
+        cmd += ["-filter_complex", filter_complex, "-map", "[vout]", "-map", "[aout]",
+                "-c:v", "libx264", "-crf", f"{crf}", "-preset", preset,
+                "-c:a", "aac", "-b:a", "192k", output_file]
+
+    else:
+        # 기본 오디오 사용
+        vf_option = []
+        if scale:
+            vf_option.append(f"scale={scale}:-2")
+        vf_str = ",".join(vf_option) if vf_option else None
+
+        if vf_str:
+            cmd += ["-vf", vf_str]
+
+        cmd += ["-c:v", "libx264", "-crf", f"{crf}", "-preset", preset,
+                "-c:a", "aac", "-b:a", "192k", output_file]
+
+    print("실행할 명령어:", " ".join(cmd))
+    subprocess.run(cmd, check=True)
+    print(f"완료: {output_file}\n동영상 크기: {sizeof_fmt(os.path.getsize(output_file))}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="FFmpeg 동영상 자르기 + 오디오 병합 + 압축")
+    parser.add_argument("video", help="동영상 경로")
+    parser.add_argument("start", help="시작 시간 (HH:MM:SS)")
+    parser.add_argument("--end", help="끝 시간 (HH:MM:SS)", default=None)
+    parser.add_argument("--audio", help="오디오 트랙 번호들 (예: 0,1)", default=None)
+    parser.add_argument("--scale", help="가로 해상도 지정 (예: 1280)", default=None)
+    parser.add_argument("--crf", help="Constant Rate Factor. Push the compression level further by increasing the CRF value (24 ~ 30 recommended)", type=int, default=23)
+    parser.add_argument(
+        "--preset",
+        help="프리셋 설정 (기본값: medium)",
+        choices=(
+            "ultrafast",
+            "superfast",
+            "veryfast",
+            "faster",
+            "fast",
+            "medium",
+            "slow",
+            "slower",
+            "veryslow",
+            "placebo",
+        ),
+        default="medium"
+    )
+
+    args = parser.parse_args()
+    run_ffmpeg(args.video, args.start, args.end, args.audio, args.scale, args.crf, args.preset)
