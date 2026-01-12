@@ -1,2 +1,2 @@
 @echo off
-uv run %~dp0cut.py %*
+uv run "%~dp0cut.py" %*
