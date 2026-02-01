@@ -3,28 +3,27 @@ import os
 import subprocess
 from collections.abc import Set
 
-
-def sizeof_fmt(num, suffix="B") -> str:
-    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
-        if abs(num) < 1024.0:
-            return f"{num:3.1f}{unit}{suffix}"
-        num /= 1024.0
-    return f"{num:.1f}Yi{suffix}"
+from src.util import abbreviate_byte
 
 
 def run_ffmpeg(
-    input_file: str,
+    source: str,
     *,
-    start_time: str,
+    destination: str | None = None,
+    start_time: str | None = None,
     end_time: str | None = None,
     audio_tracks: Set[int] | None = None,
     scale: int | None = None,
     crf: int | None = None,
-    preset="medium",
+    preset: str = "medium",
 ) -> None:
-    output_file = os.path.splitext(input_file)[0] + "_cut.mp4"
+    if destination is None:
+        destination = f"{os.path.splitext(source)[0]}_cut.mp4"
 
-    cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start_time]
+    cmd = ["ffmpeg", "-y", "-i", source]
+
+    if start_time:
+        cmd += ["-ss", start_time]
 
     if end_time:
         cmd += ["-to", end_time]
@@ -63,7 +62,7 @@ def run_ffmpeg(
             "aac",
             "-b:a",
             "192k",
-            output_file,
+            destination,
         ]
 
     else:
@@ -91,13 +90,13 @@ def run_ffmpeg(
             "aac",
             "-b:a",
             "192k",
-            output_file,
+            destination,
         ]
 
     print("실행할 명령어:", " ".join(cmd))
     subprocess.run(cmd, check=True)
     print(
-        f"완료: {output_file}\n동영상 크기: {sizeof_fmt(os.path.getsize(output_file))}"
+        f"완료: {destination}\n동영상 크기: {abbreviate_byte(os.path.getsize(destination))}"
     )
 
 
@@ -140,8 +139,9 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    input_file: str = args.video
-    start_time: str = args.start
+    source: str = args.video
+    destination: str | None = args.destination
+    start_time: str | None = args.start
     end_time: str = args.end
     audio_tracks: Set[int] | None = set(map(int, args.audio.split(",")))
     scale: int | None = int(args.scale) if args.scale is not None else None
@@ -149,7 +149,7 @@ if __name__ == "__main__":
     preset: str = args.preset
 
     run_ffmpeg(
-        input_file=input_file,
+        source=source,
         start_time=start_time,
         end_time=end_time,
         audio_tracks=audio_tracks,

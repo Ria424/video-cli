@@ -1,9 +1,20 @@
+[build-system]
+requires = ["uv_build>=0.9.24,<0.10.0"]
+build-backend = "uv_build"
+
 [project]
 name = "video_cli"
 version = "0.1.0"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
 
 [tool.ruff]
 line-length = 79
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.uv.build-backend]
+module-name = "video_cli"
+module-root = "src"
